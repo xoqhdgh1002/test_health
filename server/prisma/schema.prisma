@@ -10,10 +10,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum QuestType {
+  DAILY
+  WEEKLY
+}
+
+enum QuestStatus {
+  PENDING
+  COMPLETED
+}
+
 model User {
-  id       Int    @id @default(autoincrement())
-  email    String @unique
-  password String
-  xp       Int    @default(0)
-  level    Int    @default(1)
+  id          Int          @id @default(autoincrement())
+  email       String       @unique
+  password    String
+  xp          Int          @default(0)
+  level       Int          @default(1)
+  userQuests  UserQuest[]
+}
+
+model Book {
+  id          Int          @id @default(autoincrement())
+  title       String
+  quests      Quest[]
+}
+
+model Quest {
+  id          Int          @id @default(autoincrement())
+  title       String
+  description String
+  type        QuestType
+  xp          Int
+  bookId      Int
+  book        Book         @relation(fields: [bookId], references: [id])
+  userQuests  UserQuest[]
+}
+
+model UserQuest {
+  id          Int          @id @default(autoincrement())
+  status      QuestStatus  @default(PENDING)
+  completedAt DateTime?
+  streak      Int          @default(0)
+  userId      Int
+  questId     Int
+  user        User         @relation(fields: [userId], references: [id])
+  quest       Quest        @relation(fields: [questId], references: [id])
+
+  @@unique([userId, questId])
 }

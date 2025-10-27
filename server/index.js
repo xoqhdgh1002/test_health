@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+const authMiddleware = require('./authMiddleware');
 
 // Load environment variables
 dotenv.config();
@@ -107,6 +108,187 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// Get daily quests (protected route)
+app.get('/api/quests/daily', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get all daily quests
+    const dailyQuests = await prisma.quest.findMany({
+      where: { type: 'DAILY' },
+      include: {
+        book: true,
+        userQuests: {
+          where: { userId }
+        }
+      }
+    });
+
+    // Filter quests that are not completed or create UserQuest if doesn't exist
+    const availableQuests = [];
+
+    for (const quest of dailyQuests) {
+      let userQuest = quest.userQuests[0];
+
+      // If no UserQuest exists, create one
+      if (!userQuest) {
+        userQuest = await prisma.userQuest.create({
+          data: {
+            userId,
+            questId: quest.id,
+            status: 'PENDING'
+          }
+        });
+      }
+
+      // Only include pending quests
+      if (userQuest.status === 'PENDING') {
+        availableQuests.push({
+          id: quest.id,
+          title: quest.title,
+          description: quest.description,
+          type: quest.type,
+          xp: quest.xp,
+          book: quest.book,
+          userQuestId: userQuest.id,
+          streak: userQuest.streak
+        });
+      }
+    }
+
+    res.json(availableQuests);
+  } catch (error) {
+    console.error('Get daily quests error:', error);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// Complete quest (protected route)
+app.post('/api/quests/:questId/complete', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const questId = parseInt(req.params.questId);
+
+    // Get quest details
+    const quest = await prisma.quest.findUnique({
+      where: { id: questId }
+    });
+
+    if (!quest) {
+      return res.status(404).json({ error: '퀘스트를 찾을 수 없습니다.' });
+    }
+
+    // Get or create UserQuest
+    let userQuest = await prisma.userQuest.findUnique({
+      where: {
+        userId_questId: {
+          userId,
+          questId
+        }
+      }
+    });
+
+    if (!userQuest) {
+      userQuest = await prisma.userQuest.create({
+        data: {
+          userId,
+          questId,
+          status: 'PENDING'
+        }
+      });
+    }
+
+    // Check if already completed
+    if (userQuest.status === 'COMPLETED') {
+      return res.status(400).json({ error: '이미 완료한 퀘스트입니다.' });
+    }
+
+    // Calculate streak
+    let newStreak = 1;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+
+    const yesterdayEnd = new Date(yesterday);
+    yesterdayEnd.setHours(23, 59, 59, 999);
+
+    // Check if completed yesterday
+    const yesterdayCompletion = await prisma.userQuest.findFirst({
+      where: {
+        userId,
+        questId,
+        status: 'COMPLETED',
+        completedAt: {
+          gte: yesterday,
+          lte: yesterdayEnd
+        }
+      }
+    });
+
+    if (yesterdayCompletion) {
+      newStreak = yesterdayCompletion.streak + 1;
+    }
+
+    // Update UserQuest to completed
+    const updatedUserQuest = await prisma.userQuest.update({
+      where: { id: userQuest.id },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        streak: newStreak
+      }
+    });
+
+    // Get current user
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    // Update user XP
+    const newXp = user.xp + quest.xp;
+
+    // Check for level up
+    let newLevel = user.level;
+    const xpRequiredForNextLevel = user.level * 100;
+
+    if (newXp >= xpRequiredForNextLevel) {
+      newLevel = user.level + 1;
+    }
+
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        xp: newXp,
+        level: newLevel
+      }
+    });
+
+    // Check if leveled up
+    const leveledUp = newLevel > user.level;
+
+    res.json({
+      message: '퀘스트를 완료했습니다!',
+      quest: {
+        id: quest.id,
+        title: quest.title,
+        xp: quest.xp
+      },
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        xp: updatedUser.xp,
+        level: updatedUser.level
+      },
+      streak: newStreak,
+      leveledUp
+    });
+  } catch (error) {
+    console.error('Complete quest error:', error);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
