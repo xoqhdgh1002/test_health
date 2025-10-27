@@ -1,10 +1,11 @@
 import { useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 function Header() {
   const { user, isAuthenticated, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -14,6 +15,8 @@ function Header() {
   if (!isAuthenticated) {
     return null;
   }
+
+  const isActive = (path) => location.pathname === path;
 
   return (
     <header className="bg-white shadow-md">
@@ -25,6 +28,30 @@ function Header() {
               건강 퀘스트
             </h1>
           </Link>
+
+          {/* Navigation Menu */}
+          <nav className="flex items-center gap-6">
+            <Link
+              to="/"
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isActive('/')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              홈
+            </Link>
+            <Link
+              to="/dashboard"
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isActive('/dashboard')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              대시보드
+            </Link>
+          </nav>
 
           {/* User Info */}
           <div className="flex items-center gap-6">

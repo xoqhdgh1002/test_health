@@ -293,6 +293,49 @@ app.post('/api/quests/:questId/complete', authMiddleware, async (req, res) => {
   }
 });
 
+// Get dashboard data (protected route)
+app.get('/api/dashboard', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get user data
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    }
+
+    // Calculate XP to next level
+    const xpToNextLevel = user.level * 100;
+
+    // Mock badges based on user's progress
+    const badges = [];
+    if (user.xp >= 50) badges.push('일주일 꿀잠');
+    if (user.xp >= 100) badges.push('건강 마스터');
+    if (user.level >= 2) badges.push('레벨업 챔피언');
+    if (user.xp >= 200) badges.push('완전무결 식단');
+
+    // Mock health data
+    const mockHealth = {
+      sleepLevel: Math.min(10, Math.floor(user.xp / 20) + 3),
+      vitalityLevel: Math.min(10, Math.floor(user.xp / 15) + 2)
+    };
+
+    res.json({
+      level: user.level,
+      xp: user.xp,
+      xpToNextLevel,
+      badges,
+      mockHealth
+    });
+  } catch (error) {
+    console.error('Get dashboard error:', error);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
