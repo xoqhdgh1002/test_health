@@ -51,6 +51,26 @@ function Header() {
             >
               대시보드
             </Link>
+            <Link
+              to="/chat"
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isActive('/chat')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              채팅
+            </Link>
+            <Link
+              to="/collection"
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isActive('/collection')
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              컬렉션
+            </Link>
           </nav>
 
           {/* User Info */}

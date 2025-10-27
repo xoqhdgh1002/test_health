@@ -27,12 +27,14 @@ model User {
   xp          Int          @default(0)
   level       Int          @default(1)
   userQuests  UserQuest[]
+  userCards   UserCard[]
 }
 
 model Book {
-  id          Int          @id @default(autoincrement())
-  title       String
-  quests      Quest[]
+  id             Int              @id @default(autoincrement())
+  title          String
+  quests         Quest[]
+  knowledgeCards KnowledgeCard[]
 }
 
 model Quest {
@@ -57,4 +59,24 @@ model UserQuest {
   quest       Quest        @relation(fields: [questId], references: [id])
 
   @@unique([userId, questId])
+}
+
+model KnowledgeCard {
+  id          Int        @id @default(autoincrement())
+  term        String
+  description String
+  bookId      Int
+  book        Book       @relation(fields: [bookId], references: [id])
+  userCards   UserCard[]
+}
+
+model UserCard {
+  id          Int            @id @default(autoincrement())
+  collectedAt DateTime       @default(now())
+  userId      Int
+  cardId      Int
+  user        User           @relation(fields: [userId], references: [id])
+  card        KnowledgeCard  @relation(fields: [cardId], references: [id])
+
+  @@unique([userId, cardId])
 }

@@ -336,6 +336,110 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
   }
 });
 
+// Chat with mock AI (protected route)
+app.post('/api/chat', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { query } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: '질문을 입력해주세요.' });
+    }
+
+    // Mock AI: Quiz mode
+    if (query.includes('퀴즈')) {
+      return res.json({
+        response: '방탄 커피에 들어가는 최고의 지방은 무엇일까요? (힌트: 그래스페드 버터와 함께 사용됩니다)',
+        isQuiz: true
+      });
+    }
+
+    // Mock AI: Keyword-based card detection
+    const keywords = ['인슐린 저항성', '방탄 커피'];
+    let foundCard = null;
+
+    for (const keyword of keywords) {
+      if (query.includes(keyword)) {
+        foundCard = await prisma.knowledgeCard.findFirst({
+          where: { term: keyword }
+        });
+        break;
+      }
+    }
+
+    if (foundCard) {
+      // Check if user already has this card
+      const existingUserCard = await prisma.userCard.findUnique({
+        where: {
+          userId_cardId: {
+            userId,
+            cardId: foundCard.id
+          }
+        }
+      });
+
+      let newCard = false;
+
+      // If user doesn't have the card, collect it
+      if (!existingUserCard) {
+        await prisma.userCard.create({
+          data: {
+            userId,
+            cardId: foundCard.id
+          }
+        });
+        newCard = true;
+      }
+
+      return res.json({
+        response: foundCard.description,
+        card: {
+          id: foundCard.id,
+          term: foundCard.term
+        },
+        newCard
+      });
+    }
+
+    // Default response
+    res.json({
+      response: '죄송합니다. 해당 주제에 대한 정보를 찾을 수 없습니다. "인슐린 저항성"이나 "방탄 커피"에 대해 물어보세요!'
+    });
+  } catch (error) {
+    console.error('Chat error:', error);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// Get user's knowledge card collection (protected route)
+app.get('/api/collection', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const userCards = await prisma.userCard.findMany({
+      where: { userId },
+      include: {
+        card: true
+      },
+      orderBy: {
+        collectedAt: 'desc'
+      }
+    });
+
+    const collection = userCards.map(uc => ({
+      id: uc.card.id,
+      term: uc.card.term,
+      description: uc.card.description,
+      collectedAt: uc.collectedAt
+    }));
+
+    res.json(collection);
+  } catch (error) {
+    console.error('Get collection error:', error);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
